@@ -1,0 +1,55 @@
+name: Build and Push PetClinic Images to ECR
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  build-and-push:
+    name: Build and push all service images to ECR
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Make build script executable
+        run: chmod +x ./scripts/build-and-push.sh
+
+      - name: Build and push all images
+        env:
+          AWS_REGION: us-east-1
+          IMAGE_TAG: ${{ github.sha }}
+        run: ./scripts/build-and-push.sh
+
+      - name: Confirm images in ECR
+        run: |
+          echo "Images pushed with tag: ${{ github.sha }}"
+          aws ecr describe-images \
+            --repository-name spring-petclinic-config-server \
+            --region us-east-1 \
+            --query "imageDetails[*].imageTags" \
+            --output table
