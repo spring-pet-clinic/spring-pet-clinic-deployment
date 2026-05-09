@@ -11,7 +11,7 @@ env:
 
 jobs:
   build-and-push:
-    name: Build and push all service images to ECR
+    name: Build and push all 8 service images to ECR
     runs-on: ubuntu-latest
 
     steps:
@@ -45,11 +45,11 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: ./scripts/build-and-push.sh
 
-      - name: Confirm images in ECR
+      - name: Confirm images pushed to ECR
         run: |
-          echo "Images pushed with tag: ${{ github.sha }}"
+          echo "Pipeline complete. Verifying config-server..."
           aws ecr describe-images \
             --repository-name spring-petclinic-config-server \
             --region us-east-1 \
-            --query "imageDetails[*].imageTags" \
+            --query "imageDetails[*].{Tags:imageTags,Pushed:imagePushedAt}" \
             --output table
