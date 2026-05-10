@@ -51,15 +51,15 @@ output "secret_arns" {
 
 output "customers_secret_arn" {
   description = "Secrets Manager ARN for the customers-service database credentials"
-  value       = aws_secretsmanager_secret.db["customers"].arn
+  value       = try(aws_secretsmanager_secret.db["customers"].arn, null)
 }
 
 output "visits_secret_arn" {
   description = "Secrets Manager ARN for the visits-service database credentials"
-  value       = aws_secretsmanager_secret.db["visits"].arn
+  value       = try(aws_secretsmanager_secret.db["visits"].arn, null)
 }
 
 output "vets_secret_arn" {
   description = "Secrets Manager ARN for the vets-service database credentials"
-  value       = aws_secretsmanager_secret.db["vets"].arn
+  value       = try(aws_secretsmanager_secret.db["vets"].arn, null)
 }

@@ -18,3 +18,9 @@ override.tf.json
 secrets.tfvars
 *.auto.tfvars
 !terraform.tfvars
+
+.claude
+.apply2.log
+.apply3.log
+.plan2.log
+.bucket_name
