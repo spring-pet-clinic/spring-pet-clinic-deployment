@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(terraform *)",
+      "PowerShell($log = Get-Content \"terraform\\\\.apply.log\"; $created = \\($log | Select-String \"Creation complete\"\\).Count; $creating = \\($log | Select-String \": Creating\\\\.\\\\.\\\\.\"\\).Count; $errors = \\($log | Select-String \"Error:\"\\).Count; \"Resources created: $created / 76\"; \"Creation events started: $creating\"; \"Errors: $errors\"; \"\"; \"=== Currently in-flight \\(Still creating\\) ===\"; $log | Select-String \"Still creating\" | Select-Object -Last 8)",
+      "Bash(aws ec2 *)"
+    ]
+  }
+}
