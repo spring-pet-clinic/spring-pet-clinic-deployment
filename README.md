@@ -7,7 +7,7 @@ This repository contains the Infrastructure as Code (IaC) and Kubernetes manifes
 ```text
 petclinic-infra/
 ├── .github/workflows/          # CI/CD Automation
-│   ├── terraform.yml           # Infra provisioning pipeline
+│   ├── build-and-push.yml      #
 │   ├── observability.yml       # Monitoring stack updates
 │   ├── deploy-p1.yml           # Config & Discovery servers
 │   ├── deploy-p2.yml           # Gateway & Admin servers
