@@ -1,0 +1,123 @@
+# SPCAD-18 — Reusable Pipeline Template
+# A reusable workflow that can be called by any service-specific pipeline.
+#
+# Required GitHub Secrets (set in repo Settings > Secrets and variables > Actions):
+#   AWS_ROLE_ARN    — IAM role ARN for OIDC authentication (e.g. arn:aws:iam::135728714831:role/<role-name>)
+#   AWS_ACCOUNT_ID  — 12-digit AWS account ID (135728714831)
+#   NAMESPACE       — Kubernetes namespace for the project
+#
+# Caller workflow must include:
+#   permissions:
+#     id-token: write
+#     contents: read
+#
+# Usage in a caller workflow:
+#
+#   jobs:
+#     deploy:
+#       uses: ./.github/workflows/reusable-deploy.yml
+#       with:
+#         service-name: customers-service
+#         image-tag: ${{ github.sha }}
+#       secrets: inherit
+
+name: Reusable Deploy Template
+
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        description: 'Name of the microservice to build and deploy'
+        required: true
+        type: string
+      image-tag:
+        description: 'Docker image tag (defaults to commit SHA)'
+        required: false
+        type: string
+        default: ${{ github.sha }}
+    secrets:
+      AWS_ROLE_ARN:
+        required: true
+      AWS_ACCOUNT_ID:
+        required: true
+      AWS_REGION:
+        required: true
+      CLUSTER_NAME:
+        required: true
+      NAMESPACE:
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    name: Build & Push — ${{ inputs.service-name }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Authenticate Docker to ECR
+        run: |
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
+          docker login --username AWS --password-stdin \
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+      - name: Build and push image
+        run: |
+          ECR_PREFIX=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/spring-petclinic-ireland
+          ./mvnw clean install -DskipTests -P buildDocker \
+            -pl spring-petclinic-${{ inputs.service-name }} \
+            -Ddocker.image.prefix=$ECR_PREFIX \
+            -Dcontainer.build.extraarg="--push" \
+            -Ddocker.image.tag=${{ inputs.image-tag }}
+
+  deploy:
+    name: Deploy — ${{ inputs.service-name }}
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ secrets.CLUSTER_NAME }} \
+            --region ${{ secrets.AWS_REGION }}
+
+      - name: Substitute placeholders in manifest
+        run: |
+          sed -i "s|<IMAGE_TAG>|${{ inputs.image-tag }}|g" \
+            k8s/${{ inputs.service-name }}/deployment.yaml
+          sed -i "s|<NAMESPACE>|${{ secrets.NAMESPACE }}|g" \
+            k8s/${{ inputs.service-name }}/deployment.yaml
+
+      - name: Deploy to EKS
+        run: kubectl apply -f k8s/${{ inputs.service-name }}/deployment.yaml
+
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/${{ inputs.service-name }} \
+            -n ${{ secrets.NAMESPACE }} --timeout=120s
