@@ -99,3 +99,48 @@ module "ecr" {
   untagged_expiry_days = var.ecr_untagged_expiry_days
   tagged_image_count   = var.ecr_tagged_image_count
 }
+
+# ─── MODULE 5: monitoring ───────────────────────────────────────────────────────────
+# This module creates the monitoring using prometheus, grafana and zipkin
+# We are using terraform and helm for all the above installations.
+# For each of the microservice it opens the path at /actuator/prometheus
+# these will monitor varios resources like clusters,  nodegroups etc, along with all the 8 microservices.
+
+module "monitoring" {
+  source = "./monitoring"
+  prometheus-values = file("${path.module}/../observability/prometheus/values.yml")
+  services = {
+    "api-gateway" = {
+      port = "http"
+      path = "/actuator/prometheus"
+    }
+    "customers-service" = {
+      port = "http"
+      path = "/actuator/prometheus"
+    }
+    "vets-service" = {
+      port = "http"
+      path = "/actuator/prometheus"
+    }
+    "visits-service" = {
+      port = "http"
+      path = "/actuator/prometheus"
+    }
+    "config-server" = {
+      port = "http"
+      path = "/actuator/prometheus"
+    }
+    "discovery-server" = {
+      port = "http"
+      path = "/actuator/prometheus"
+    }
+    "admin-server" = {
+      port = "http"
+      path = "/actuator/prometheus"
+    }
+    "genai-service" = {
+      port = "http"
+      path = "/actuator/prometheus"
+    }
+  }
+}

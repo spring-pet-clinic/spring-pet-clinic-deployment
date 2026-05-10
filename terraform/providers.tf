@@ -14,15 +14,20 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.6"
     }
+    
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.0"
+    }
   }
 
-  # backend "s3" {
-  #   bucket         = "petclinic-tfstate"
-  #   key            = "root/terraform.tfstate"
-  #   region         = "eu-west-1"
-  #   dynamodb_table = "petclinic-tfstate-lock"
-  #   encrypt        = true
-  # }
+  backend "s3" {
+    bucket         = "petclinic-tfstate-rj79q8aw"
+    key            = "root/terraform.tfstate"
+    region         = "eu-west-1"
+    dynamodb_table = "petclinic-tfstate-lock"
+    encrypt        = true
+  }
 }
 
 provider "aws" {
@@ -40,3 +45,13 @@ provider "aws" {
 provider "tls" {}
 
 provider "random" {}
+
+provider "kubernetes" {
+  config_path = "~/.kube/config"
+}
+
+provider "helm" {
+  kubernetes {
+    config_path = "~/.kube/config"
+  }
+}
