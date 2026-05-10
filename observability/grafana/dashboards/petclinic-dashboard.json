@@ -1,0 +1,81 @@
+{
+  "title": "Spring PetClinic - Observability Dashboard",
+  "uid": "petclinic-main",
+  "tags": ["petclinic", "microservices", "observability"],
+  "style": "dark",
+  "timezone": "browser",
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Services Health Status",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
+      "targets": [
+        { "expr": "up{job='api-gateway'}", "legendFormat": "API Gateway" },
+        { "expr": "up{job='customers-service'}", "legendFormat": "Customers" },
+        { "expr": "up{job='vets-service'}", "legendFormat": "Vets" },
+        { "expr": "up{job='visits-service'}", "legendFormat": "Visits" },
+        { "expr": "up{job='config-server'}", "legendFormat": "Config Server" },
+        { "expr": "up{job='discovery-server'}", "legendFormat": "Discovery" },
+        { "expr": "up{job='admin-server'}", "legendFormat": "Admin" },
+        { "expr": "up{job='genai-service'}", "legendFormat": "GenAI" }
+      ],
+      "datasource": "prometheus"
+    },
+    {
+      "id": 2,
+      "title": "HTTP Requests Per Service",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "rate(http_server_requests_seconds_count{job='customers-service'}[1m])", "legendFormat": "Customers" },
+        { "expr": "rate(http_server_requests_seconds_count{job='vets-service'}[1m])", "legendFormat": "Vets" },
+        { "expr": "rate(http_server_requests_seconds_count{job='visits-service'}[1m])", "legendFormat": "Visits" },
+        { "expr": "rate(http_server_requests_seconds_count{job='api-gateway'}[1m])", "legendFormat": "API Gateway" }
+      ],
+      "datasource": "prometheus"
+    },
+    {
+      "id": 3,
+      "title": "Error Rate Per Service",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "rate(http_server_requests_seconds_count{status=~'5..', job='customers-service'}[1m])", "legendFormat": "Customers Errors" },
+        { "expr": "rate(http_server_requests_seconds_count{status=~'5..', job='vets-service'}[1m])", "legendFormat": "Vets Errors" },
+        { "expr": "rate(http_server_requests_seconds_count{status=~'5..', job='visits-service'}[1m])", "legendFormat": "Visits Errors" }
+      ],
+      "datasource": "prometheus"
+    },
+    {
+      "id": 4,
+      "title": "CPU Usage Per Service",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "process_cpu_usage{job='customers-service'}", "legendFormat": "Customers" },
+        { "expr": "process_cpu_usage{job='vets-service'}", "legendFormat": "Vets" },
+        { "expr": "process_cpu_usage{job='visits-service'}", "legendFormat": "Visits" },
+        { "expr": "process_cpu_usage{job='api-gateway'}", "legendFormat": "API Gateway" },
+        { "expr": "process_cpu_usage{job='genai-service'}", "legendFormat": "GenAI" }
+      ],
+      "datasource": "prometheus"
+    },
+    {
+      "id": 5,
+      "title": "Memory Usage Per Service",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "jvm_memory_used_bytes{job='customers-service', area='heap'}", "legendFormat": "Customers" },
+        { "expr": "jvm_memory_used_bytes{job='vets-service', area='heap'}", "legendFormat": "Vets" },
+        { "expr": "jvm_memory_used_bytes{job='visits-service', area='heap'}", "legendFormat": "Visits" },
+        { "expr": "jvm_memory_used_bytes{job='api-gateway', area='heap'}", "legendFormat": "API Gateway" }
+      ],
+      "datasource": "prometheus"
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1
+}
