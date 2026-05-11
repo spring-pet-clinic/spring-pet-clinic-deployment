@@ -24,6 +24,10 @@ resource "helm_release" "kube_prometheus_stack" {
     name  = "grafana.adminPassword"
     value = "MyStrongPassword123"
   }
+  set {
+    name  = "crds.enabled"
+    value = true
+  }
 
   values = [var.prometheus-values]
 
@@ -64,6 +68,7 @@ resource "helm_release" "zipkin" {
   }
 
   depends_on = [
-    kubernetes_namespace_v1.monitoring
+    kubernetes_namespace_v1.monitoring,
+    helm_release.kube_prometheus_stack
   ]
 }

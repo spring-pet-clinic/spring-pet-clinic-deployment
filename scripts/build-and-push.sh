@@ -5,7 +5,7 @@
 # Amazon ECR.
 #
 # Usage (local):
-#   export AWS_REGION=us-east-1
+#   export AWS_REGION=eu-west-1
 #   export IMAGE_TAG=v1.0.0           # optional — defaults to 'latest'
 #   ./scripts/build-and-push.sh
 #
@@ -14,7 +14,7 @@
 set -euo pipefail
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-AWS_REGION="${AWS_REGION:-us-east-1}"
+AWS_REGION="${AWS_REGION:-eu-west-1}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 JAVA_VERSION="${JAVA_VERSION:-17}"
 

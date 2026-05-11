@@ -1,9 +1,9 @@
 name: Build and Push PetClinic Images to ECR
 
 on:
-  push:
-    branches:
-      - main
+  # push:
+  #   branches:
+  #     - dev
   workflow_dispatch:
 
 env:
@@ -41,7 +41,7 @@ jobs:
 
       - name: Build and push all images
         env:
-          AWS_REGION: us-east-1
+          AWS_REGION: ${{ env.AWS_REGION }}
           IMAGE_TAG: ${{ github.sha }}
         run: ./scripts/build-and-push.sh
 
@@ -50,6 +50,6 @@ jobs:
           echo "Pipeline complete. Verifying config-server..."
           aws ecr describe-images \
             --repository-name spring-petclinic-config-server \
-            --region us-east-1 \
+            --region ${{ env.AWS_REGION }} \
             --query "imageDetails[*].{Tags:imageTags,Pushed:imagePushedAt}" \
             --output table
