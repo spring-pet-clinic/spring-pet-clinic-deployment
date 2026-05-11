@@ -45,12 +45,12 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init
 
-      # # Terraform Format Check
+      # Terraform Format Check
       # - name: Terraform Format Check
       #   working-directory: ${{ env.TF_WORKING_DIR }}
       #   run: terraform fmt -check
 
-      # # Terraform Validate
+      # Terraform Validate
       # - name: Terraform Validate
       #   working-directory: ${{ env.TF_WORKING_DIR }}
       #   run: terraform validate
