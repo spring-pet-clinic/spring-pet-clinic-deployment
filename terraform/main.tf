@@ -108,6 +108,10 @@ module "ecr" {
 
 module "monitoring" {
   source = "./monitoring"
+  providers = {
+    kubernetes = kubernetes
+    helm       = helm
+  }
   depends_on = [module.eks]
   prometheus-values = file("${path.module}/../observability/prometheus/values.yml")
   services = {
