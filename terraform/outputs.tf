@@ -37,10 +37,10 @@ output "eks_oidc_provider_arn" {
   value       = module.eks.oidc_provider_arn
 }
 
-output "kubeconfig_command" {
-  description = "Run this command to configure kubectl for the cluster"
-  value       = module.eks.kubeconfig_command
-}
+# output "kubeconfig_command" {
+#   description = "Run this command to configure kubectl for the cluster"
+#   value       = module.eks.kubeconfig_command
+# }
 
 # ─── RDS ─────────────────────────────────────────────────────────────────────
 

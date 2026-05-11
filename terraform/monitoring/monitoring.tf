@@ -1,16 +1,16 @@
-resource "null_resource" "update_kubeconfig" {
-  provisioner "local-exec" {
-    command = "aws eks update-kubeconfig --region eu-west-1 --name spring-petclinic-ireland-eks"
-  }
-}
+# resource "null_resource" "update_kubeconfig" {
+#   provisioner "local-exec" {
+#     command = "aws eks update-kubeconfig --region eu-west-1 --name spring-petclinic-ireland-eks"
+#   }
+# }
 
 resource "kubernetes_namespace_v1" "monitoring" {
   metadata {
     name = "monitoring"
   }
-  depends_on = [
-    null_resource.update_kubeconfig
-  ]
+  # depends_on = [
+  #   null_resource.update_kubeconfig
+  # ]
 }
 
 resource "helm_release" "kube_prometheus_stack" {
