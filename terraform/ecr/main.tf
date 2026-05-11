@@ -28,7 +28,7 @@ data "aws_caller_identity" "current" {}
 resource "aws_ecr_repository" "services" {
   for_each = toset(local.services)
 
-  name                 = "${local.name_prefix}/${each.key}"
+  name                 = "${var.project_name}-${each.key}"
   image_tag_mutability = var.image_tag_mutability
 
   image_scanning_configuration {

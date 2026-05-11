@@ -17,9 +17,6 @@ set -euo pipefail
 AWS_REGION="${AWS_REGION:-eu-west-1}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 JAVA_VERSION="${JAVA_VERSION:-17}"
-# ECR repo names are created by Terraform as "${project_name}-${environment}/<service>"
-# e.g. spring-petclinic-dev/config-server. Override via env if your prefix differs.
-ECR_REPO_PREFIX="${ECR_REPO_PREFIX:-spring-petclinic-dev}"
 
 # ── Build strategy ─────────────────────────────────────────────────────────────
 # WHY: Spring Boot build-image uses CNB (Cloud Native Buildpacks) internally.
@@ -97,11 +94,7 @@ for SERVICE in "${SERVICES[@]}"; do
   echo "──────────────────────────────────────"
 
   SERVICE_DIR="./${SERVICE}"
-  # Maven module dir is "spring-petclinic-<service>" but the ECR repo is
-  # "<prefix>/<service>" — strip the "spring-petclinic-" prefix to derive it.
-  SHORT_NAME="${SERVICE#spring-petclinic-}"
-  ECR_REPO_NAME="${ECR_REPO_PREFIX}/${SHORT_NAME}"
-  IMAGE_URI="${ECR_REGISTRY}/${ECR_REPO_NAME}"
+  IMAGE_URI="${ECR_REGISTRY}/${SERVICE}"
 
   # Validate service directory exists
   if [[ ! -d "${SERVICE_DIR}" ]]; then

@@ -60,7 +60,7 @@ jobs:
         run: |
           echo "Pipeline complete. Verifying config-server..."
           aws ecr describe-images \
-            --repository-name spring-petclinic-dev/config-server \
+            --repository-name spring-petclinic-config-server \
             --region ${{ env.AWS_REGION }} \
             --query "imageDetails[*].{Tags:imageTags,Pushed:imagePushedAt}" \
             --output table
