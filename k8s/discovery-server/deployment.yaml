@@ -1,0 +1,66 @@
+# Discovery Server (Eureka) — must be healthy before domain services start
+# SPCAD-21 | Deploy Services 1–3
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discovery-server
+  namespace: spring-petclinic-ireland
+  labels:
+    app: discovery-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: discovery-server
+  template:
+    metadata:
+      labels:
+        app: discovery-server
+    spec:
+      initContainers:
+        - name: wait-for-config-server
+          image: busybox
+          command: ['sh', '-c', 'until wget -qO- http://config-server:8888/actuator/health; do echo waiting for config-server; sleep 5; done']
+      containers:
+        - name: discovery-server
+          image: 135728714831.dkr.ecr.eu-west-1.amazonaws.com/spring-petclinic-discovery-server:latest
+          ports:
+            - containerPort: 8761
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "docker"
+            - name: CONFIG_SERVER_URL
+              value: "http://config-server:8888"
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+            initialDelaySeconds: 60
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: discovery-server
+  namespace: spring-petclinic-ireland
+spec:
+  selector:
+    app: discovery-server
+  ports:
+    - protocol: TCP
+      port: 8761
+      targetPort: 8761
+  type: ClusterIP

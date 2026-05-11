@@ -7,7 +7,7 @@ This repository contains the Infrastructure as Code (IaC) and Kubernetes manifes
 ```text
 petclinic-infra/
 ├── .github/workflows/          # CI/CD Automation
-│   ├── terraform.yml           # Infra provisioning pipeline
+│   ├── build-and-push.yml      #
 │   ├── observability.yml       # Monitoring stack updates
 │   ├── deploy-p1.yml           # Config & Discovery servers
 │   ├── deploy-p2.yml           # Gateway & Admin servers
@@ -18,6 +18,7 @@ petclinic-infra/
 │   │   ├── networking/         # VPC, Subnets, IGW, NAT
 │   │   ├── cluster/            # EKS/GKE Cluster & IAM Roles
 │   │   └── database/           # Managed SQL (RDS/Cloud SQL)
+│   │   └── monitoring/         # Install Prometheus, Grafana, and Zipkin using helm
 │   └── envs/                   # Environment-specific configurations
 │       ├── dev/
 │       │   ├── main.tf         # Calls modules for Dev
@@ -44,8 +45,7 @@ petclinic-infra/
 │   │   └── values.yaml
 │   ├── grafana/
 │   │   └── dashboards/         # JSON dashboard exports
-│   └── loki/
-│       └── values.yaml
+│   │   |  └──petclinic-dashboard.json
 ├── scripts/                    # Helper scripts for local setup
 │   └── setup-local-env.sh
 └── README.md
