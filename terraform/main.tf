@@ -108,6 +108,7 @@ module "ecr" {
 
 module "monitoring" {
   source = "./monitoring"
+  depends_on = [module.eks]
   prometheus-values = file("${path.module}/../observability/prometheus/values.yml")
   services = {
     "api-gateway" = {
