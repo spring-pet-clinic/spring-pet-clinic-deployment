@@ -33,6 +33,18 @@ spec:
               value: "http://config-server:8888"
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: "http://discovery-server:8761/eureka/"
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://spring-petclinic-ireland-mysql.cf2ocuwawblu.eu-west-1.rds.amazonaws.com:3306/petclinic_customers?useSSL=false&allowPublicKeyRetrieval=true"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: password
           resources:
             requests:
               cpu: "200m"
