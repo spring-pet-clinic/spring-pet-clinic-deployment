@@ -1,0 +1,26 @@
+# Local Terraform state — use remote backend (S3) instead
+terraform.tfstate
+terraform.tfstate.backup
+*.tfstate
+*.tfstate.*
+
+# Downloaded provider plugins
+.terraform/
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Sensitive variable files
+*.tfvars.json
+secrets.tfvars
+*.auto.tfvars
+!terraform.tfvars
+
+.claude
+.apply2.log
+.apply3.log
+.plan2.log
+.bucket_name
