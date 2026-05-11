@@ -3,7 +3,7 @@ name: Terraform Infrastructure Pipeline
 on:
   push:
     branches:
-      - main
+      - dev
     paths:
       - 'terraform/**'
       - '.github/workflows/infra.yml'
