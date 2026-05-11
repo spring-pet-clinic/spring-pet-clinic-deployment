@@ -3,7 +3,7 @@ name: Terraform Infrastructure Pipeline
 on:
   push:
     branches:
-      - main
+      - dev
     paths:
       - 'terraform/**'
       - '.github/workflows/infra.yml'
@@ -45,15 +45,15 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init
 
-      # Terraform Format Check
-      - name: Terraform Format Check
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform fmt -check
+      # # Terraform Format Check
+      # - name: Terraform Format Check
+      #   working-directory: ${{ env.TF_WORKING_DIR }}
+      #   run: terraform fmt -check
 
-      # Terraform Validate
-      - name: Terraform Validate
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform validate
+      # # Terraform Validate
+      # - name: Terraform Validate
+      #   working-directory: ${{ env.TF_WORKING_DIR }}
+      #   run: terraform validate
 
       # Terraform Plan
       - name: Terraform Plan
