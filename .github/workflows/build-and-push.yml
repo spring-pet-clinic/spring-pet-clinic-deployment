@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: us-east-1
+  AWS_REGION: eu-west-1
 
 jobs:
   build-and-push:
@@ -41,7 +41,7 @@ jobs:
 
       - name: Build and push all images
         env:
-          AWS_REGION: us-east-1
+          AWS_REGION: eu-west-1
           IMAGE_TAG: ${{ github.sha }}
         run: ./scripts/build-and-push.sh
 
@@ -50,6 +50,6 @@ jobs:
           echo "Pipeline complete. Verifying config-server..."
           aws ecr describe-images \
             --repository-name spring-petclinic-config-server \
-            --region us-east-1 \
+            --region eu-west-1 \
             --query "imageDetails[*].{Tags:imageTags,Pushed:imagePushedAt}" \
             --output table
