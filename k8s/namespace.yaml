@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spring-petclinic-ireland
+  labels:
+    project: spring-petclinic
+    team: dmi-internship
