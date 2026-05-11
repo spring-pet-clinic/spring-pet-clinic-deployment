@@ -1,0 +1,60 @@
+# =============================================================================
+# test-one-service.yml  —  TEST CALLER: Deploys config-server only
+# Branch: feature/cicd-templates
+#
+# PURPOSE:
+#   Use this to VALIDATE the reusable-deploy.yml template with a single service
+#   (config-server) before scaling to all 8 services.
+#
+# HOW TO TRIGGER:
+#   Option A — Manual (recommended for testing):
+#     GitHub → Actions tab → "Test: Deploy config-server only" → Run workflow
+#   Option B — Automatic:
+#     Pushes to feature/cicd-templates branch trigger this workflow
+#
+# WHAT IT DOES:
+#   Calls reusable-deploy.yml with config-server parameters (eu-west-1).
+#
+# SUCCESS CRITERIA:
+#   ✅ All steps pass (green)
+#   ✅ Pod is Running in the petclinic namespace
+#   ✅ /actuator/health returns 200
+# =============================================================================
+
+name: "TEST — Deploy config-server only"
+
+on:
+  # ── Manual trigger (easiest for testing) ──────────────────────────────────
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'ECR image tag to deploy (leave as "latest" for testing)'
+        required: false
+        default: 'latest'
+
+  # ── Auto-trigger on push to this feature branch ───────────────────────────
+  push:
+    branches:
+      - feature/cicd-templates
+    paths:
+      #- '.github/workflows/reusable-deploy.yml'
+      - '.github/workflows/test-one-service.yml'
+      #- 'k8s/config-server/**'
+
+# ── Call the reusable workflow for config-server only ────────────────────────
+jobs:
+  deploy-config-server:
+    name: "🧪 Test — Deploy config-server (eu-west-1)"
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      service-name:     "spring-petclinic-config-server"
+      manifest-path:    "k8s/config-server"         # folder with deployment.yaml + service.yaml
+      image-tag:        ${{ github.event.inputs.image_tag || 'latest' }}
+      aws-region:       "eu-west-1"
+      eks-cluster-name: "petclinic-eks-cluster"
+      k8s-namespace:    "petclinic"
+      rollout-timeout:  300
+    secrets:
+      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_ACCOUNT_ID:        ${{ secrets.AWS_ACCOUNT_ID }}

@@ -1,0 +1,243 @@
+# =============================================================================
+# deploy-all-services.yml  —  PRODUCTION CALLER: Deploys all 8 services
+# Branch: feature/cicd-templates
+#
+# PURPOSE:
+#   Calls reusable-deploy.yml for each of the 8 Spring PetClinic services
+#   in the correct startup dependency order.
+#
+# DEPLOYMENT ORDER (critical — do NOT change):
+#   TIER 1: config-server        ← all services fetch config from here on startup
+#      ↓
+#   TIER 2: discovery-server     ← all services register here on startup
+#      ↓
+#   TIER 3 (parallel):           ← can all start simultaneously after discovery is up
+#     api-gateway
+#     customers-service
+#     visits-service
+#     vets-service
+#     admin-server
+#     genai-service
+#
+# HOW TO TRIGGER:
+#   Manual: GitHub → Actions → "Deploy All 8 Services to EKS" → Run workflow
+#   Auto:   Runs when a versioned release tag (v*) is pushed, e.g. git tag v1.0.0
+#
+# AWS Region: eu-west-1
+# =============================================================================
+
+name: "Deploy All 8 Services to EKS"
+
+on:
+  # ── Manual trigger with custom image tag ──────────────────────────────────
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'ECR image tag to deploy (e.g. build-42, v1.0.0, latest)'
+        required: false
+        default: 'latest'
+
+  # ── Auto-trigger on release tags ──────────────────────────────────────────
+  push:
+    tags:
+      - 'v*'    # e.g. v1.0.0, v1.2.3
+
+# ── Shared env ────────────────────────────────────────────────────────────────
+env:
+  AWS_REGION:       eu-west-1
+  EKS_CLUSTER:      petclinic-eks-cluster
+  NAMESPACE:        petclinic
+
+# =============================================================================
+# TIER 1 — config-server (must be healthy before any other service starts)
+# =============================================================================
+jobs:
+  deploy-config-server:
+    name: "1️⃣  config-server"
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      service-name:     "spring-petclinic-config-server"
+      manifest-path:    "k8s/config-server"
+      image-tag:        ${{ github.event.inputs.image_tag || 'latest' }}
+      aws-region:       "eu-west-1"
+      eks-cluster-name: "petclinic-eks-cluster"
+      k8s-namespace:    "petclinic"
+      rollout-timeout:  300
+    secrets:
+      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_ACCOUNT_ID:        ${{ secrets.AWS_ACCOUNT_ID }}
+
+# =============================================================================
+# TIER 2 — discovery-server (waits for config-server to be healthy)
+# =============================================================================
+  deploy-discovery-server:
+    name: "2️⃣  discovery-server"
+    needs: deploy-config-server          # ← blocks until Tier 1 completes
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      service-name:     "spring-petclinic-discovery-server"
+      manifest-path:    "k8s/discovery-server"
+      image-tag:        ${{ github.event.inputs.image_tag || 'latest' }}
+      aws-region:       "eu-west-1"
+      eks-cluster-name: "petclinic-eks-cluster"
+      k8s-namespace:    "petclinic"
+      rollout-timeout:  300
+    secrets:
+      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_ACCOUNT_ID:        ${{ secrets.AWS_ACCOUNT_ID }}
+
+# =============================================================================
+# TIER 3 — all remaining 6 services in PARALLEL
+#           each waits for discovery-server (Tier 2), not for each other
+# =============================================================================
+  deploy-api-gateway:
+    name: "3️⃣  api-gateway"
+    needs: deploy-discovery-server       # ← blocks until Tier 2 completes
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      service-name:     "spring-petclinic-api-gateway"
+      manifest-path:    "k8s/api-gateway"
+      image-tag:        ${{ github.event.inputs.image_tag || 'latest' }}
+      aws-region:       "eu-west-1"
+      eks-cluster-name: "petclinic-eks-cluster"
+      k8s-namespace:    "petclinic"
+      rollout-timeout:  300
+    secrets:
+      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_ACCOUNT_ID:        ${{ secrets.AWS_ACCOUNT_ID }}
+
+  deploy-customers-service:
+    name: "3️⃣  customers-service"
+    needs: deploy-discovery-server
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      service-name:     "spring-petclinic-customers-service"
+      manifest-path:    "k8s/customers-service"
+      image-tag:        ${{ github.event.inputs.image_tag || 'latest' }}
+      aws-region:       "eu-west-1"
+      eks-cluster-name: "petclinic-eks-cluster"
+      k8s-namespace:    "petclinic"
+      rollout-timeout:  300
+    secrets:
+      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_ACCOUNT_ID:        ${{ secrets.AWS_ACCOUNT_ID }}
+
+  deploy-visits-service:
+    name: "3️⃣  visits-service"
+    needs: deploy-discovery-server
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      service-name:     "spring-petclinic-visits-service"
+      manifest-path:    "k8s/visits-service"
+      image-tag:        ${{ github.event.inputs.image_tag || 'latest' }}
+      aws-region:       "eu-west-1"
+      eks-cluster-name: "petclinic-eks-cluster"
+      k8s-namespace:    "petclinic"
+      rollout-timeout:  300
+    secrets:
+      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_ACCOUNT_ID:        ${{ secrets.AWS_ACCOUNT_ID }}
+
+  deploy-vets-service:
+    name: "3️⃣  vets-service"
+    needs: deploy-discovery-server
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      service-name:     "spring-petclinic-vets-service"
+      manifest-path:    "k8s/vets-service"
+      image-tag:        ${{ github.event.inputs.image_tag || 'latest' }}
+      aws-region:       "eu-west-1"
+      eks-cluster-name: "petclinic-eks-cluster"
+      k8s-namespace:    "petclinic"
+      rollout-timeout:  300
+    secrets:
+      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_ACCOUNT_ID:        ${{ secrets.AWS_ACCOUNT_ID }}
+
+  deploy-admin-server:
+    name: "3️⃣  admin-server"
+    needs: deploy-discovery-server
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      service-name:     "spring-petclinic-admin-server"
+      manifest-path:    "k8s/admin-server"
+      image-tag:        ${{ github.event.inputs.image_tag || 'latest' }}
+      aws-region:       "eu-west-1"
+      eks-cluster-name: "petclinic-eks-cluster"
+      k8s-namespace:    "petclinic"
+      rollout-timeout:  300
+    secrets:
+      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_ACCOUNT_ID:        ${{ secrets.AWS_ACCOUNT_ID }}
+
+  deploy-genai-service:
+    name: "3️⃣  genai-service"
+    needs: deploy-discovery-server
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      service-name:     "spring-petclinic-genai-service"
+      manifest-path:    "k8s/genai-service"
+      image-tag:        ${{ github.event.inputs.image_tag || 'latest' }}
+      aws-region:       "eu-west-1"
+      eks-cluster-name: "petclinic-eks-cluster"
+      k8s-namespace:    "petclinic"
+      rollout-timeout:  300
+    secrets:
+      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_ACCOUNT_ID:        ${{ secrets.AWS_ACCOUNT_ID }}
+
+# =============================================================================
+# FINAL — Apply Ingress (after ALL Tier 3 services are live)
+# =============================================================================
+  apply-ingress:
+    name: "🌐  Apply Ingress & Print URL"
+    needs:
+      - deploy-api-gateway
+      - deploy-customers-service
+      - deploy-visits-service
+      - deploy-vets-service
+      - deploy-admin-server
+      - deploy-genai-service
+    #runs-on: ubuntu-latest   # GitHub-hosted runner — no self-hosted runner needed
+    runs-on: self-hosted   # self-hosted runner needed - testing
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            eu-west-1
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with: { version: 'latest' }
+
+      - name: Configure kubeconfig
+        run: aws eks update-kubeconfig --region eu-west-1 --name petclinic-eks-cluster
+
+      - name: Apply Ingress manifest
+        run: kubectl apply -n petclinic -f k8s/shared/ingress.yaml
+
+      - name: Print live URL
+        run: |
+          echo "⏳ Waiting 30s for ALB to provision..."
+          sleep 30
+          EXTERNAL=$(kubectl get ingress petclinic-ingress -n petclinic \
+            -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "pending")
+          echo ""
+          if [ "${EXTERNAL}" = "pending" ] || [ -z "${EXTERNAL}" ]; then
+            echo "⏳ ALB hostname not yet assigned. Run this to check later:"
+            echo "   kubectl get ingress petclinic-ingress -n petclinic"
+          else
+            echo "🎉 PetClinic is live at: http://${EXTERNAL}"
+          fi
