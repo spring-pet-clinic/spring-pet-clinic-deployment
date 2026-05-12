@@ -49,6 +49,11 @@ output "oidc_provider_url" {
   value       = aws_iam_openid_connect_provider.cluster.url
 }
 
+output "cluster_oidc_issuer_url" {
+  description = "The URL on the EKS cluster OIDC Issuer (used for IRSA)"
+  value       = aws_eks_cluster.main.identity[0].oidc[0].issuer
+}
+
 output "infra_node_group_name" {
   description = "Name of the infra node group (Config Server, Eureka)"
   value       = aws_eks_node_group.infra.node_group_name

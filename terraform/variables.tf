@@ -169,3 +169,41 @@ variable "ecr_tagged_image_count" {
   type        = number
   default     = 10
 }
+
+# ─── AWS LOAD BALANCER CONTROLLER / INGRESS ───────────────────────────────────
+
+variable "alb_controller_chart_version" {
+  description = "Helm chart version for AWS Load Balancer Controller"
+  type        = string
+  default     = "2.7.0"
+}
+
+variable "alb_controller_replicas" {
+  description = "Number of controller replicas for high availability"
+  type        = number
+  default     = 2
+}
+
+variable "alb_controller_log_level" {
+  description = "Log level for ALB controller (debug, info, warn, error)"
+  type        = string
+  default     = "info"
+}
+
+variable "enable_shield" {
+  description = "Enable AWS Shield Standard protection (free DDoS protection)"
+  type        = bool
+  default     = false
+}
+
+variable "enable_waf" {
+  description = "Enable AWS WAF Classic integration"
+  type        = bool
+  default     = false
+}
+
+variable "enable_wafv2" {
+  description = "Enable AWS WAF v2 integration"
+  type        = bool
+  default     = false
+}

@@ -1,19 +1,43 @@
 # Ingress — routes external traffic to the API Gateway
-# SPCAD-24 / SPCAD-25 | Install Ingress Controller & Configure Routing Rules
-# Requires the ingress controller to be installed first:
-#   helm install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
+# Managed by AWS Load Balancer Controller (provisioned via Terraform)
+# The controller automatically creates an ALB and target groups based on this Ingress resource
+#
+# Reference: https://kubernetes-sigs.github.io/aws-load-balancer-controller/latest/guide/ingress/annotations/
+
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: petclinic-ingress
   namespace: spring-petclinic-ireland
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    # AWS Load Balancer Controller annotations
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+
+    # Load balancer name (must be unique within AWS account)
+    alb.ingress.kubernetes.io/load-balancer-name: spring-petclinic-alb
+
+    # Tags for ALB (visible in AWS Console)
+    alb.ingress.kubernetes.io/tags: Environment=dev,Project=spring-petclinic,Team=dmi-internship
+
+    # Health check configuration
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: '15'
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
+    alb.ingress.kubernetes.io/healthy-threshold-count: '2'
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: '2'
+
+    # Idle timeout for connections (30 seconds, min is 1s, max is 4000s)
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.connection.timeout=30
+
 spec:
-  ingressClassName: nginx
+  # Must match IngressClass created by AWS Load Balancer Controller
+  ingressClassName: aws-load-balancer-controller
+
   rules:
-    - host: <YOUR_DOMAIN_OR_LB_DNS>
-      http:
+    # HTTP rule: routes all traffic to API Gateway
+    - http:
         paths:
           - path: /
             pathType: Prefix
@@ -22,3 +46,16 @@ spec:
                 name: api-gateway
                 port:
                   number: 8080
+
+---
+# Optional: Additional routing rules if needed in future
+# Example: Route requests with path /admin to admin-server
+# - http:
+#     paths:
+#       - path: /admin
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: admin-server
+#             port:
+#               number: 9090

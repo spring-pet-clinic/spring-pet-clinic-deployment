@@ -38,6 +38,11 @@ variable "sg_database_id" {
   type        = string
 }
 
+variable "eks_cluster_security_group_id" {
+  description = "EKS cluster control plane security group ID for RDS access"
+  type        = string
+}
+
 # ─── Engine ───────────────────────────────────────────────────────────────────
 
 variable "mysql_version" {

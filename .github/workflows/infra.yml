@@ -89,7 +89,9 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform apply -auto-approve -target=module.monitoring
 
-
+      - name: Terraform Apply ingress controller
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve -target=module.ingress
 
 
 
