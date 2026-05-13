@@ -2,6 +2,35 @@ locals {
   sg_prefix = "${var.project_name}-${var.environment}"
 }
 
+# ─── API GATEWAY ──────────────────────────────────────────────────────────────
+# API Gateway (8080) — entry point for all microservices
+
+resource "aws_security_group" "api_gateway" {
+  name        = "${local.sg_prefix}-api-gateway-sg"
+  description = "API Gateway - port 8080"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description = "API Gateway from internet"
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "All outbound"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${local.sg_prefix}-api-gateway-sg"
+  }
+}
+
 # ─── BUSINESS SERVICES ───────────────────────────────────────────────────────
 # Customers (8081), Visits (8082), Vets (8083), GenAI (8084)
 # Accept traffic from the API Gateway only
