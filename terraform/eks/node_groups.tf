@@ -9,7 +9,7 @@ resource "aws_eks_node_group" "infra" {
   instance_types  = var.infra_node_instance_types
   launch_template {
     id      = aws_launch_template.nodes.id
-    version = aws_launch_template.nodes.latest_version_number
+    version = "$Default"
   }
 
   scaling_config {
@@ -56,7 +56,7 @@ resource "aws_eks_node_group" "app" {
   instance_types  = var.app_node_instance_types
   launch_template {
     id      = aws_launch_template.nodes.id
-    version = aws_launch_template.nodes.latest_version_number
+    version = "$Default"
   }
 
   scaling_config {
@@ -96,7 +96,7 @@ resource "aws_eks_node_group" "monitoring" {
   instance_types  = var.monitoring_node_instance_types
   launch_template {
     id      = aws_launch_template.nodes.id
-    version = aws_launch_template.nodes.latest_version_number
+    version = "$Default"
   }
 
   scaling_config {

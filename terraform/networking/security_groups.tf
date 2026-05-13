@@ -11,17 +11,10 @@ resource "aws_security_group" "app_services" {
   description = "Allow ports 8081-8084 from API Gateway"
   vpc_id      = aws_vpc.main.id
 
+  # Allow inter-service communication including from API Gateway
+  # (All run on same app node group, so self-referencing SG is used)
   ingress {
-    description     = "Microservice ports from API Gateway"
-    from_port       = 8081
-    to_port         = 8084
-    protocol        = "tcp"
-    security_groups = [aws_security_group.api_gateway.id]
-  }
-
-  # Allow inter-service communication (e.g., GenAI calling other services)
-  ingress {
-    description = "Inter-service communication"
+    description = "Inter-service communication and from API Gateway"
     from_port   = 8081
     to_port     = 8084
     protocol    = "tcp"
@@ -55,7 +48,7 @@ resource "aws_security_group" "infra_services" {
     from_port       = 8888
     to_port         = 8888
     protocol        = "tcp"
-    security_groups = [aws_security_group.app_services.id, aws_security_group.api_gateway.id]
+    security_groups = [aws_security_group.app_services.id]
   }
 
   ingress {
@@ -63,7 +56,7 @@ resource "aws_security_group" "infra_services" {
     from_port       = 8761
     to_port         = 8761
     protocol        = "tcp"
-    security_groups = [aws_security_group.app_services.id, aws_security_group.api_gateway.id]
+    security_groups = [aws_security_group.app_services.id]
   }
 
   # Config and Discovery need to reach each other
