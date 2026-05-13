@@ -29,7 +29,7 @@ metadata:
     alb.ingress.kubernetes.io/unhealthy-threshold-count: '2'
 
     # Idle timeout for connections (30 seconds, min is 1s, max is 4000s)
-    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.connection.timeout=30
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=30
 
 spec:
   # Must match IngressClass created by AWS Load Balancer Controller

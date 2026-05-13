@@ -135,6 +135,16 @@ resource "aws_security_group_rule" "rds_from_eks_cluster" {
   source_security_group_id = var.eks_cluster_security_group_id
 }
 
+resource "aws_security_group_rule" "rds_from_eks_nodes" {
+  description              = "Allow EKS worker nodes (AWS-managed shared SG) to reach RDS on MySQL port"
+  type                     = "ingress"
+  from_port                = 3306
+  to_port                  = 3306
+  protocol                 = "tcp"
+  security_group_id        = var.sg_database_id
+  source_security_group_id = var.eks_cluster_shared_security_group_id
+}
+
 resource "aws_secretsmanager_secret_version" "db" {
   for_each = var.databases
 

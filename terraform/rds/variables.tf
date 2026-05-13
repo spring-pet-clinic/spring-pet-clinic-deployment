@@ -43,6 +43,11 @@ variable "eks_cluster_security_group_id" {
   type        = string
 }
 
+variable "eks_cluster_shared_security_group_id" {
+  description = "AWS-managed shared security group ID on EKS worker nodes (vpc_config.cluster_security_group_id)"
+  type        = string
+}
+
 # ─── Engine ───────────────────────────────────────────────────────────────────
 
 variable "mysql_version" {

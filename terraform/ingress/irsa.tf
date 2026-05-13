@@ -3,32 +3,9 @@
 
 data "aws_iam_policy_document" "aws_load_balancer_controller" {
   statement {
-    sid    = "AWSLoadBalancerController"
-    effect = "Allow"
-    actions = [
-      "elbv2:CreateLoadBalancer",
-      "elbv2:CreateTargetGroup",
-      "elbv2:CreateListener",
-      "elbv2:CreateListenerCertificate",
-      "elbv2:AddListenerCertificates",
-      "elbv2:ModifyLoadBalancerAttributes",
-      "elbv2:ModifyTargetGroup",
-      "elbv2:ModifyTargetGroupAttributes",
-      "elbv2:ModifyListener",
-      "elbv2:DescribeLoadBalancers",
-      "elbv2:DescribeTargetGroups",
-      "elbv2:DescribeListeners",
-      "elbv2:DescribeListenerCertificates",
-      "elbv2:DescribeTags",
-      "elbv2:DeleteLoadBalancer",
-      "elbv2:DeleteTargetGroup",
-      "elbv2:DeleteListener",
-      "elbv2:RemoveListenerCertificates",
-      "elbv2:RegisterTargets",
-      "elbv2:DeregisterTargets",
-      "elasticloadbalancing:DescribeLoadBalancers",
-      "elasticloadbalancing:DescribeTargetGroups",
-    ]
+    sid       = "AWSLoadBalancerController"
+    effect    = "Allow"
+    actions   = ["elasticloadbalancing:*"]
     resources = ["*"]
   }
 
@@ -36,12 +13,18 @@ data "aws_iam_policy_document" "aws_load_balancer_controller" {
     sid    = "EC2Permissions"
     effect = "Allow"
     actions = [
-      "ec2:DescribeSecurityGroups",
+      "ec2:DescribeAvailabilityZones",
       "ec2:DescribeInstances",
       "ec2:DescribeInstanceStatus",
+      "ec2:DescribeInternetGateways",
+      "ec2:DescribeNetworkInterfaces",
+      "ec2:DescribeRouteTables",
+      "ec2:DescribeSecurityGroups",
       "ec2:DescribeSubnets",
-      "ec2:DescribeVpcs",
       "ec2:DescribeTags",
+      "ec2:DescribeVpcPeeringConnections",
+      "ec2:DescribeVpcs",
+      "ec2:GetCoipPoolUsage",
       "ec2:ModifyNetworkInterfaceAttribute",
     ]
     resources = ["*"]

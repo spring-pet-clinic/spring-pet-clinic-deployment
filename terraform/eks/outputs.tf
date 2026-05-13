@@ -29,6 +29,11 @@ output "cluster_security_group_id" {
   value       = aws_security_group.cluster.id
 }
 
+output "cluster_shared_security_group_id" {
+  description = "AWS-managed shared security group ID attached to both EKS control plane and worker nodes"
+  value       = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
+}
+
 output "node_security_group_id" {
   description = "Security group ID attached to the EKS worker nodes"
   value       = aws_security_group.nodes.id
