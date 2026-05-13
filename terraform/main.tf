@@ -73,8 +73,8 @@ module "rds" {
   db_subnet_ids                  = module.networking.db_subnet_ids
   db_subnet_group_name           = module.networking.db_subnet_group_name
   sg_database_id                 = module.networking.sg_database_id
-  eks_cluster_security_group_id        = module.eks.cluster_security_group_id
-  eks_cluster_shared_security_group_id = module.eks.cluster_shared_security_group_id
+  eks_cluster_security_group_id = module.eks.cluster_security_group_id
+  eks_node_security_group_id    = module.eks.node_security_group_id
 
   mysql_version            = var.mysql_version
   instance_class           = var.db_instance_class
