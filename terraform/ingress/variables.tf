@@ -49,7 +49,7 @@ variable "eks_cluster_security_group_id" {
 variable "aws_load_balancer_controller_chart_version" {
   description = "Helm chart version for AWS Load Balancer Controller"
   type        = string
-  default     = "2.7.0"
+  default     = "3.3.0"
 }
 
 variable "alb_controller_replicas" {

@@ -21,6 +21,7 @@ resource "helm_release" "aws_load_balancer_controller" {
     yamlencode({
       clusterName = var.cluster_name
       region      = var.aws_region
+      vpcId       = var.vpc_id
 
       serviceAccount = {
         create = false
