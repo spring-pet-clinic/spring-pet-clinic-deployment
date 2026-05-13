@@ -4,18 +4,9 @@
 #   }
 # }
 
-resource "kubernetes_namespace_v1" "monitoring" {
-  metadata {
-    name = "monitoring"
-  }
-  # depends_on = [
-  #   null_resource.update_kubeconfig
-  # ]
-}
-
 resource "helm_release" "kube_prometheus_stack" {
   name       = "kube-prometheus-stack"
-  namespace  = kubernetes_namespace_v1.monitoring.metadata[0].name
+  namespace  = "monitoring"
 
   repository = "https://prometheus-community.github.io/helm-charts"
   chart      = "kube-prometheus-stack"
@@ -30,34 +21,33 @@ resource "helm_release" "kube_prometheus_stack" {
   }
 
   values = [var.prometheus-values]
-
-  depends_on = [
-    kubernetes_namespace_v1.monitoring
-  ]
 }
 
-resource "kubernetes_config_map" "petclinic_dashboard" {
-  metadata {
-    name      = "petclinic-dashboard"
-    namespace = kubernetes_namespace_v1.monitoring.metadata[0].name
-
-    labels = {
-      grafana_dashboard = "1"
-    }
-  }
-
-  data = {
-    "petclinic-dashboard.json" =  file("${path.module}/../../observability/grafana/dashboards/petclinic-dashboard.json")
-  }
-
-  depends_on = [
-    helm_release.kube_prometheus_stack
-  ]
-}
+# Grafana dashboard is created via kubectl apply, not Terraform
+# This ConfigMap is managed separately
+#
+# resource "kubernetes_config_map" "petclinic_dashboard" {
+#   metadata {
+#     name      = "petclinic-dashboard"
+#     namespace = "monitoring"
+#
+#     labels = {
+#       grafana_dashboard = "1"
+#     }
+#   }
+#
+#   data = {
+#     "petclinic-dashboard.json" =  file("${path.module}/../../observability/grafana/dashboards/petclinic-dashboard.json")
+#   }
+#
+#   depends_on = [
+#     helm_release.kube_prometheus_stack
+#   ]
+# }
 
 resource "helm_release" "zipkin" {
   name       = "zipkin"
-  namespace  = kubernetes_namespace_v1.monitoring.metadata[0].name
+  namespace  = "monitoring"
 
   repository = "https://openzipkin.github.io/zipkin"
   chart      = "zipkin"
@@ -68,7 +58,6 @@ resource "helm_release" "zipkin" {
   }
 
   depends_on = [
-    kubernetes_namespace_v1.monitoring,
     helm_release.kube_prometheus_stack
   ]
 }

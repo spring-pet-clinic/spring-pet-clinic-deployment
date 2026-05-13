@@ -40,16 +40,6 @@ output "nat_gateway_ids" {
 
 # ─── Security Group IDs (consumed by other modules) ──────────────────────────
 
-output "sg_alb_id" {
-  description = "Security group ID for the Application Load Balancer"
-  value       = aws_security_group.alb.id
-}
-
-output "sg_api_gateway_id" {
-  description = "Security group ID for the API Gateway service"
-  value       = aws_security_group.api_gateway.id
-}
-
 output "sg_app_services_id" {
   description = "Security group ID for the business microservices"
   value       = aws_security_group.app_services.id

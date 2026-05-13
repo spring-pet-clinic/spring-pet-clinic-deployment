@@ -121,6 +121,30 @@ resource "aws_secretsmanager_secret" "db" {
   }
 }
 
+# ─── SECURITY GROUP RULE: Allow EKS cluster to reach RDS ────────────────────
+# Allows the EKS cluster control plane to communicate with RDS if needed
+# (in addition to EKS nodes via app_services security group)
+
+resource "aws_security_group_rule" "rds_from_eks_cluster" {
+  description              = "Allow EKS cluster control plane to reach RDS on MySQL port"
+  type                     = "ingress"
+  from_port                = 3306
+  to_port                  = 3306
+  protocol                 = "tcp"
+  security_group_id        = var.sg_database_id
+  source_security_group_id = var.eks_cluster_security_group_id
+}
+
+resource "aws_security_group_rule" "rds_from_eks_nodes" {
+  description              = "Allow EKS worker nodes (AWS-managed shared SG) to reach RDS on MySQL port"
+  type                     = "ingress"
+  from_port                = 3306
+  to_port                  = 3306
+  protocol                 = "tcp"
+  security_group_id        = var.sg_database_id
+  source_security_group_id = var.eks_cluster_shared_security_group_id
+}
+
 resource "aws_secretsmanager_secret_version" "db" {
   for_each = var.databases
 

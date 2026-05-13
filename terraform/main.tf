@@ -69,10 +69,12 @@ module "rds" {
   environment  = var.environment
 
   # Networking inputs
-  vpc_id               = module.networking.vpc_id
-  db_subnet_ids        = module.networking.db_subnet_ids
-  db_subnet_group_name = module.networking.db_subnet_group_name
-  sg_database_id       = module.networking.sg_database_id
+  vpc_id                         = module.networking.vpc_id
+  db_subnet_ids                  = module.networking.db_subnet_ids
+  db_subnet_group_name           = module.networking.db_subnet_group_name
+  sg_database_id                 = module.networking.sg_database_id
+  eks_cluster_security_group_id        = module.eks.cluster_security_group_id
+  eks_cluster_shared_security_group_id = module.eks.cluster_shared_security_group_id
 
   mysql_version            = var.mysql_version
   instance_class           = var.db_instance_class
@@ -113,7 +115,7 @@ module "monitoring" {
     helm       = helm
   }
   depends_on = [module.eks]
-  prometheus-values = file("${path.module}/../observability/prometheus/values.yml")
+  prometheus-values = file("${path.module}/../observability/prometheus/values.yaml")
   services = {
     "api-gateway" = {
       port = "http"
@@ -148,4 +150,38 @@ module "monitoring" {
       path = "/actuator/prometheus"
     }
   }
+}
+
+# ─── MODULE 6: INGRESS CONTROLLER ───────────────────────────────────────────
+# AWS Load Balancer Controller for routing external traffic to the API Gateway.
+# Manages ALBs based on Kubernetes Ingress resources.
+
+module "ingress" {
+  source = "./ingress"
+
+  providers = {
+    kubernetes = kubernetes
+    helm       = helm
+  }
+
+  project_name              = var.project_name
+  environment               = var.environment
+  aws_region                = var.aws_region
+  cluster_name              = module.eks.cluster_name
+  cluster_oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
+  vpc_id                    = module.networking.vpc_id
+  eks_nodes_security_group_id     = module.eks.node_security_group_id
+  eks_cluster_security_group_id   = module.eks.cluster_security_group_id
+
+  aws_load_balancer_controller_chart_version = var.alb_controller_chart_version
+  alb_controller_replicas                    = var.alb_controller_replicas
+  alb_controller_log_level                   = var.alb_controller_log_level
+  enable_shield                              = var.enable_shield
+  enable_waf                                 = var.enable_waf
+  enable_wafv2                               = var.enable_wafv2
+
+  depends_on = [
+    module.eks,
+    module.monitoring
+  ]
 }
