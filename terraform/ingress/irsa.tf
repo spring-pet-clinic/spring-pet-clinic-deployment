@@ -143,17 +143,6 @@ resource "kubernetes_service_account" "aws_load_balancer_controller" {
       "eks.amazonaws.com/role-arn" = aws_iam_role.aws_load_balancer_controller.arn
     }
   }
-
-  depends_on = [
-    kubernetes_namespace_v1.kube_system
-  ]
-}
-
-# Helper: Ensure kube-system namespace exists
-resource "kubernetes_namespace_v1" "kube_system" {
-  metadata {
-    name = "kube-system"
-  }
 }
 
 # ─── GET CURRENT AWS ACCOUNT ID AND OIDC INFO ──────────────────────────────
