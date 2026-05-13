@@ -129,6 +129,58 @@ resource "aws_security_group_rule" "cluster_to_nodes_443" {
   source_security_group_id = aws_security_group.cluster.id
 }
 
+# ─── LAUNCH TEMPLATE FOR NODE GROUPS ─────────────────────────────────────────
+# Specifies security groups and other EC2 launch parameters for node groups
+
+resource "aws_launch_template" "nodes" {
+  name_prefix            = "${local.name_prefix}-nodes-"
+  description            = "Launch template for EKS node groups"
+  update_default_version = true
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = 100
+      volume_type           = "gp3"
+      delete_on_termination = true
+      encrypted             = true
+    }
+  }
+
+  network_interfaces {
+    associate_public_ip_address = false
+    security_groups             = [aws_security_group.nodes.id]
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  monitoring {
+    enabled = true
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "${local.name_prefix}-node"
+    }
+  }
+
+  tag_specifications {
+    resource_type = "volume"
+    tags = {
+      Name = "${local.name_prefix}-node-volume"
+    }
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # ─── EKS ADD-ONS ─────────────────────────────────────────────────────────────
 
 resource "aws_eks_addon" "vpc_cni" {

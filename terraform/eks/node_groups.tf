@@ -7,6 +7,10 @@ resource "aws_eks_node_group" "infra" {
   node_role_arn   = aws_iam_role.node_group.arn
   subnet_ids      = var.private_subnet_ids
   instance_types  = var.infra_node_instance_types
+  launch_template {
+    id      = aws_launch_template.nodes.id
+    version = aws_launch_template.nodes.latest_version_number
+  }
 
   scaling_config {
     desired_size = var.infra_node_desired
@@ -50,6 +54,10 @@ resource "aws_eks_node_group" "app" {
   node_role_arn   = aws_iam_role.node_group.arn
   subnet_ids      = var.private_subnet_ids
   instance_types  = var.app_node_instance_types
+  launch_template {
+    id      = aws_launch_template.nodes.id
+    version = aws_launch_template.nodes.latest_version_number
+  }
 
   scaling_config {
     desired_size = var.app_node_desired
@@ -86,6 +94,10 @@ resource "aws_eks_node_group" "monitoring" {
   node_role_arn   = aws_iam_role.node_group.arn
   subnet_ids      = var.private_subnet_ids
   instance_types  = var.monitoring_node_instance_types
+  launch_template {
+    id      = aws_launch_template.nodes.id
+    version = aws_launch_template.nodes.latest_version_number
+  }
 
   scaling_config {
     desired_size = var.monitoring_node_desired
