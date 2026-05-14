@@ -16,9 +16,9 @@ metadata:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
 
-    # Join the same ALB as k8s/ingress.yaml.
-    # Lower group.order = evaluated first; specific paths like /grafana must
-    # win over the catch-all "/" rule that routes to api-gateway.
+    # Must match petclinic-ingress so AWS LB Controller merges both Ingresses
+    # onto the same physical ALB instead of creating a second one.
+    alb.ingress.kubernetes.io/load-balancer-name: spring-petclinic-alb
     alb.ingress.kubernetes.io/group.name: spring-petclinic
     alb.ingress.kubernetes.io/group.order: '1'
 
@@ -45,3 +45,10 @@ spec:
                 name: kube-prometheus-stack-prometheus
                 port:
                   number: 9090
+          - path: /zipkin
+            pathType: Prefix
+            backend:
+              service:
+                name: zipkin
+                port:
+                  number: 9411

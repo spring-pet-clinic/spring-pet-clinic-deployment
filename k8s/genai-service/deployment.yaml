@@ -40,6 +40,10 @@ spec:
                 secretKeyRef:
                   name: openai-secret
                   key: OPENAI_API_KEY
+            - name: MANAGEMENT_TRACING_EXPORT_ZIPKIN_ENDPOINT
+              value: "http://zipkin.monitoring.svc.cluster.local:9411/api/v2/spans"
+            - name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
+              value: "1.0"
           resources:
             requests:
               cpu: "200m"

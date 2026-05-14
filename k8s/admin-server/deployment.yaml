@@ -39,6 +39,10 @@ spec:
               value: "http://config-server:8888"
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: "http://discovery-server:8761/eureka/"
+            - name: MANAGEMENT_TRACING_EXPORT_ZIPKIN_ENDPOINT
+              value: "http://zipkin.monitoring.svc.cluster.local:9411/api/v2/spans"
+            - name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
+              value: "1.0"
           resources:
             requests:
               cpu: "100m"
