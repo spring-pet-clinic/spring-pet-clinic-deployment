@@ -17,6 +17,11 @@ metadata:
     # Load balancer name (must be unique within AWS account)
     alb.ingress.kubernetes.io/load-balancer-name: spring-petclinic-alb
 
+    # Share this ALB with the monitoring Ingress (cross-namespace) via IngressGroup.
+    # All Ingresses with the same group.name are merged onto one ALB.
+    alb.ingress.kubernetes.io/group.name: spring-petclinic
+    alb.ingress.kubernetes.io/group.order: '10'
+
     # Tags for ALB (visible in AWS Console)
     alb.ingress.kubernetes.io/tags: Environment=dev,Project=spring-petclinic,Team=dmi-internship
 

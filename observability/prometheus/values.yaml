@@ -1,6 +1,9 @@
 prometheus:
   prometheusSpec:
     scrapeInterval: 15s
+    # Serve from /prometheus so it works behind the shared ALB Ingress.
+    routePrefix: /prometheus
+    externalUrl: /prometheus
     additionalScrapeConfigs:
       - job_name: 'api-gateway'
         metrics_path: '/actuator/prometheus'
@@ -50,3 +53,8 @@ grafana:
   adminPassword: MyStrongPassword123
   service:
     type: ClusterIP
+  # Serve from /grafana so it works behind the shared ALB Ingress.
+  grafana.ini:
+    server:
+      root_url: "%(protocol)s://%(domain)s/grafana/"
+      serve_from_sub_path: true

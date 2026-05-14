@@ -1,0 +1,47 @@
+# Monitoring Ingress — exposes Grafana and Prometheus on the SAME ALB as the
+# app Ingress (k8s/ingress.yaml). Shared via alb.ingress.kubernetes.io/group.name.
+#
+# URLs after apply:
+#   http://<alb-dns>/grafana       (login: admin / MyStrongPassword123)
+#   http://<alb-dns>/prometheus
+#
+# Find <alb-dns> with:
+#   kubectl get ingress -A
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: monitoring-ingress
+  namespace: monitoring
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+
+    # Join the same ALB as k8s/ingress.yaml.
+    # Lower group.order = evaluated first; specific paths like /grafana must
+    # win over the catch-all "/" rule that routes to api-gateway.
+    alb.ingress.kubernetes.io/group.name: spring-petclinic
+    alb.ingress.kubernetes.io/group.order: '1'
+
+    # NOTE: Prometheus has no built-in auth — anyone with the URL can query
+    # every metric. Restrict to your office/VPN CIDR before going live:
+    # alb.ingress.kubernetes.io/inbound-cidrs: 203.0.113.0/24
+
+spec:
+  ingressClassName: aws-load-balancer-controller
+  rules:
+    - http:
+        paths:
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: kube-prometheus-stack-grafana
+                port:
+                  number: 80
+          - path: /prometheus
+            pathType: Prefix
+            backend:
+              service:
+                name: kube-prometheus-stack-prometheus
+                port:
+                  number: 9090
