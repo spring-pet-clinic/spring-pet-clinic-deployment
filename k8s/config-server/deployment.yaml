@@ -25,6 +25,8 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "docker"
+            - name: MANAGEMENT_SERVER_PORT
+              value: "8888"
             - name: MANAGEMENT_ENDPOINTS_WEB_BASE_PATH
               value: "/"
             - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
