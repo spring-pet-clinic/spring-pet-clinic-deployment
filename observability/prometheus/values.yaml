@@ -5,7 +5,7 @@ prometheus:
       - job_name: 'api-gateway'
         metrics_path: '/actuator/prometheus'
         static_configs:
-          - targets: ['api-gateway:8080']
+          - targets: ['api-gateway:8090']
 
       - job_name: 'customers-service'
         metrics_path: '/actuator/prometheus'
@@ -25,7 +25,7 @@ prometheus:
       - job_name: 'config-server'
         metrics_path: '/actuator/prometheus'
         static_configs:
-          - targets: ['config-server:8888']
+          - targets: ['config-server:8889']
 
       - job_name: 'discovery-server'
         metrics_path: '/actuator/prometheus'
@@ -47,6 +47,6 @@ alertmanager:
 
 grafana:
   enabled: true
-  adminPassword: admin
+  adminPassword: MyStrongPassword123
   service:
     type: ClusterIP
