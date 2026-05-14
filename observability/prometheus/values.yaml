@@ -23,9 +23,9 @@ prometheus:
           - targets: ['visits-service:8082']
 
       - job_name: 'config-server'
-        metrics_path: '/actuator/prometheus'
+        metrics_path: '/prometheus'
         static_configs:
-          - targets: ['config-server:8889']
+          - targets: ['config-server:8888']
 
       - job_name: 'discovery-server'
         metrics_path: '/actuator/prometheus'
