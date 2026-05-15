@@ -20,7 +20,9 @@
 10. [GenAI Service Non-Functional](#10-genai-service-non-functional)
 11. [kubectl: Wrong Context or No Access](#11-kubectl-wrong-context-or-no-access)
 12. [Monitoring Stack Destroyed by Terraform](#12-monitoring-stack-destroyed-by-terraform)
-13. [General Diagnostic Commands](#13-general-diagnostic-commands)
+13. [Monitoring Public URLs Returning 404](#13-monitoring-public-urls-returning-404)
+14. [Zipkin Traces Not Appearing](#14-zipkin-traces-not-appearing)
+15. [General Diagnostic Commands](#15-general-diagnostic-commands)
 
 ---
 
@@ -373,9 +375,100 @@ terraform apply -auto-approve -target=module.monitoring
 
 **Note:** After monitoring is re-deployed, `ServiceMonitor` resources are recreated and Prometheus resumes scraping all services automatically. No service restarts are required.
 
+The public-access Ingress for Grafana/Prometheus/Zipkin lives in `k8s/monitoring-ingress.yaml` (not in Terraform). If the `monitoring` namespace was destroyed and recreated, re-apply it:
+
+```bash
+kubectl apply -f k8s/monitoring-ingress.yaml
+```
+
 ---
 
-## 13. General Diagnostic Commands
+## 13. Monitoring Public URLs Returning 404
+
+**Symptom:**
+`http://<alb-dns>/grafana`, `/prometheus`, or `/zipkin` returns 404, or the monitoring Ingress shows no ADDRESS:
+
+```bash
+kubectl get ingress -n monitoring
+# monitoring-ingress   aws-load-balancer-controller   *      <none>      80
+```
+
+**Root Cause:**
+The monitoring Ingress shares the application ALB through `alb.ingress.kubernetes.io/group.name: spring-petclinic`. Both `petclinic-ingress` (in `spring-petclinic-ireland`) and `monitoring-ingress` (in `monitoring`) must declare the **same** `group.name`, and the AWS Load Balancer Controller must have permission to read Ingresses across namespaces. A common failure mode is the monitoring Ingress being applied to the wrong namespace, missing the group annotation, or the controller being too old to support IngressGroup.
+
+**Diagnosis:**
+```bash
+# Confirm both Ingresses are in the same group
+kubectl get ingress -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\t"}{.metadata.annotations.alb\.ingress\.kubernetes\.io/group\.name}{"\n"}{end}'
+
+# Check AWS LB Controller logs for IngressGroup errors
+kubectl logs -n kube-system \
+  $(kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller \
+    -o jsonpath='{.items[0].metadata.name}') --tail=100 | grep -i "group\|monitoring-ingress"
+
+# Confirm the backend services exist on the expected ports
+kubectl get svc -n monitoring kube-prometheus-stack-grafana kube-prometheus-stack-prometheus zipkin
+```
+
+**Fix:**
+
+1. Re-apply the monitoring Ingress in the correct namespace:
+```bash
+kubectl apply -f k8s/monitoring-ingress.yaml
+```
+
+2. If the ALB has no listener rule for `/grafana`/`/prometheus`/`/zipkin`, force the controller to reconcile by editing any annotation on either Ingress (e.g. bump `group.order`).
+
+3. If service names/ports drift (e.g. Helm chart upgrade renames `kube-prometheus-stack-grafana`), update `k8s/monitoring-ingress.yaml` to match `kubectl get svc -n monitoring`.
+
+---
+
+## 14. Zipkin Traces Not Appearing
+
+**Symptom:**
+The Zipkin UI loads at `http://<alb-dns>/zipkin` but **Run Query** returns no traces, even after exercising the application.
+
+**Root Cause:**
+All eight services export traces via two environment variables set in each Deployment manifest:
+
+```yaml
+- name: MANAGEMENT_TRACING_EXPORT_ZIPKIN_ENDPOINT
+  value: "http://zipkin.monitoring.svc.cluster.local:9411/api/v2/spans"
+- name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
+  value: "1.0"
+```
+
+Traces will not appear if (a) the env vars are missing on a Deployment, (b) the Zipkin Service is not reachable across namespaces, (c) sampling probability is `0`, or (d) the service is on an image that predates the env-var addition (commit `b60287a`).
+
+**Diagnosis:**
+```bash
+# Confirm both env vars are present on every Deployment
+for svc in config-server discovery-server api-gateway customers-service \
+           vets-service visits-service genai-service admin-server; do
+  echo "== $svc =="
+  kubectl get deploy $svc -n spring-petclinic-ireland \
+    -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="MANAGEMENT_TRACING_EXPORT_ZIPKIN_ENDPOINT")].value}{"\n"}'
+done
+
+# From an application pod, confirm Zipkin is reachable
+kubectl exec -n spring-petclinic-ireland deploy/api-gateway -- \
+  curl -sf -o /dev/null -w "%{http_code}\n" \
+  http://zipkin.monitoring.svc.cluster.local:9411/health
+
+# Tail Zipkin to confirm spans are arriving
+kubectl logs -n monitoring -l app.kubernetes.io/name=zipkin --tail=50
+```
+
+**Fix:**
+
+- If env vars are missing on any service, re-apply that Deployment (`kubectl apply -f k8s/<service>/deployment.yaml`).
+- If the curl above returns non-200, the Zipkin Service is missing or in the wrong namespace. Verify with `kubectl get svc zipkin -n monitoring`.
+- If pods are running an old image, re-run the **Build and Push PetClinic Images to ECR** pipeline and then `kubectl rollout restart deployment/<svc> -n spring-petclinic-ireland`.
+- For production, lower `MANAGEMENT_TRACING_SAMPLING_PROBABILITY` from `1.0` to e.g. `0.1` to reduce trace volume — but for diagnosing missing traces, keep it at `1.0`.
+
+---
+
+## 15. General Diagnostic Commands
 
 ```bash
 # All pods in the application namespace
@@ -409,10 +502,16 @@ kubectl get svc -n spring-petclinic-ireland
 # Health check via api-gateway (replace with your ALB DNS)
 curl http://k8s-springpetclinic-13affa3dfe-92745873.eu-west-1.elb.amazonaws.com/actuator/health
 
-# Port-forward monitoring tools
+# Monitoring tools — primary access via shared ALB (see Section 13):
+#   http://<alb-dns>/grafana     (admin / MyStrongPassword123)
+#   http://<alb-dns>/prometheus
+#   http://<alb-dns>/zipkin
+#
+# Fallback: port-forward when the ALB or monitoring-ingress is broken.
 kubectl port-forward svc/kube-prometheus-stack-grafana 3000:80 -n monitoring
 kubectl port-forward svc/kube-prometheus-stack-prometheus 9090:9090 -n monitoring
 kubectl port-forward svc/zipkin 9411:9411 -n monitoring
+kubectl port-forward svc/kube-prometheus-stack-alertmanager 9093:9093 -n monitoring
 ```
 
 ---

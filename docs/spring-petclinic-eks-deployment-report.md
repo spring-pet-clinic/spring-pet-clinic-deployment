@@ -156,15 +156,17 @@ The full observability stack was deployed to a dedicated `monitoring` namespace 
 
 **Prometheus and Grafana (SPCAD-27/28/29):** The `kube-prometheus-stack` Helm chart was installed, deploying Prometheus, Grafana, Alertmanager, and node exporters. Prometheus is configured with custom scrape jobs for all eight microservices, targeting each service's `/actuator/prometheus` endpoint. `ServiceMonitor` resources were created for each service to enable automatic discovery. Grafana is connected to the Prometheus datasource, with the Spring PetClinic metrics dashboard available for import from `observability/grafana/dashboards/petclinic-dashboard.json`. Credentials: `admin` / `MyStrongPassword123`.
 
-**Distributed tracing (SPCAD-30):** Zipkin was deployed via its Helm chart into the `monitoring` namespace. All microservices are configured with Micrometer tracing and report spans to Zipkin, enabling end-to-end trace visualisation across service boundaries.
+**Distributed tracing (SPCAD-30):** Zipkin was deployed via its Helm chart into the `monitoring` namespace. All eight microservice Deployments were updated to export traces to Zipkin via two environment variables: `MANAGEMENT_TRACING_EXPORT_ZIPKIN_ENDPOINT=http://zipkin.monitoring.svc.cluster.local:9411/api/v2/spans` and `MANAGEMENT_TRACING_SAMPLING_PROBABILITY=1.0` (100% sampling in dev — to be lowered for production). This enables end-to-end trace visualisation across service boundaries through the Zipkin UI.
 
-All monitoring pods are confirmed `Running` in the `monitoring` namespace. Tools are accessible via `kubectl port-forward`:
+**Public exposure (May 2026 update):** Grafana, Prometheus, and Zipkin were initially accessible only via `kubectl port-forward`. A second Ingress (`k8s/monitoring-ingress.yaml`) was added, sharing the application ALB via the `alb.ingress.kubernetes.io/group.name: spring-petclinic` annotation so both Ingresses converge onto a single load balancer instead of provisioning a second one. All three tools are now reachable on the public ALB DNS:
 
-| Tool | Command | URL |
-|------|---------|-----|
-| Grafana | `kubectl port-forward svc/kube-prometheus-stack-grafana 3000:80 -n monitoring` | `http://localhost:3000` |
-| Prometheus | `kubectl port-forward svc/kube-prometheus-stack-prometheus 9090:9090 -n monitoring` | `http://localhost:9090` |
-| Zipkin | `kubectl port-forward svc/zipkin 9411:9411 -n monitoring` | `http://localhost:9411/zipkin/` |
+| Tool | Public URL | Credentials |
+|------|------------|-------------|
+| Grafana | `http://<alb-dns>/grafana` | `admin` / `MyStrongPassword123` |
+| Prometheus | `http://<alb-dns>/prometheus` | none |
+| Zipkin | `http://<alb-dns>/zipkin` | none |
+
+Alertmanager remains internal and is reached via port-forward when required. Prometheus and Zipkin have no built-in authentication; the Ingress annotation `alb.ingress.kubernetes.io/inbound-cidrs` should be set to an office/VPN CIDR before any production rollout. All monitoring pods are confirmed `Running` in the `monitoring` namespace.
 
 ---
 
@@ -176,7 +178,6 @@ Sonny Enchill tested **inter-service communication** (SPCAD-32) by exercising fu
 
 A prerequisite fix was required: the MySQL schema and seed data had not been initialised on startup because the SQL scripts target a single `petclinic` database while the deployment uses separate databases (`petclinic_customers`, `petclinic_vets`, `petclinic_visits`). A Kubernetes Job (`db-schema-init-job.yaml`) was created to run the correct schema and seed scripts against each database directly from within the cluster.
 
-Failure simulation (SPCAD-33) is pending.
 
 ---
 

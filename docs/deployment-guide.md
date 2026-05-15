@@ -335,29 +335,49 @@ All of the following should be `Running`:
 - `alertmanager-kube-prometheus-stack-alertmanager-0`
 - `zipkin-*`
 
-### Access via Port-Forward
+### Public Access via Shared ALB
 
-Monitoring tools are `ClusterIP` only — not exposed publicly. Access them locally:
+Grafana, Prometheus, and Zipkin are exposed publicly on the **same ALB** as the application via `k8s/monitoring-ingress.yaml`. Both Ingresses share the ALB through the `alb.ingress.kubernetes.io/group.name: spring-petclinic` annotation.
 
 ```bash
-# Grafana — http://localhost:3000  (admin / MyStrongPassword123)
-kubectl port-forward svc/kube-prometheus-stack-grafana 3000:80 -n monitoring
+kubectl apply -f k8s/monitoring-ingress.yaml
+kubectl get ingress -n monitoring
+```
 
-# Prometheus — http://localhost:9090
-kubectl port-forward svc/kube-prometheus-stack-prometheus 9090:9090 -n monitoring
+Public URLs (replace with the ALB DNS from Section 8):
 
-# Zipkin — http://localhost:9411/zipkin/
-kubectl port-forward svc/zipkin 9411:9411 -n monitoring
+| Tool | URL | Credentials |
+|------|-----|-------------|
+| Grafana | `http://<alb-dns>/grafana` | `admin` / `MyStrongPassword123` |
+| Prometheus | `http://<alb-dns>/prometheus` | none |
+| Zipkin | `http://<alb-dns>/zipkin` | none |
 
-# Alertmanager — http://localhost:9093
+> **Warning:** Prometheus and Zipkin have no built-in auth — anyone with the URL can query every metric or trace. Restrict to an office/VPN CIDR via `alb.ingress.kubernetes.io/inbound-cidrs` in `k8s/monitoring-ingress.yaml` before going to production.
+
+Alertmanager is not exposed publicly. Access it via port-forward when needed:
+
+```bash
 kubectl port-forward svc/kube-prometheus-stack-alertmanager 9093:9093 -n monitoring
 ```
+
+### Distributed Tracing (Zipkin)
+
+All 8 microservices export traces to Zipkin via the following environment variables, set in each Deployment manifest:
+
+```yaml
+- name: MANAGEMENT_TRACING_EXPORT_ZIPKIN_ENDPOINT
+  value: "http://zipkin.monitoring.svc.cluster.local:9411/api/v2/spans"
+- name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
+  value: "1.0"
+```
+
+Sampling is set to `1.0` (100%) for dev. Lower this in production (e.g. `0.1`) to reduce trace volume. Verify traces are flowing by hitting the app, then opening the Zipkin UI at `http://<alb-dns>/zipkin` and clicking **Run Query**.
 
 ### Grafana Dashboard
 
 The PetClinic dashboard JSON is at `observability/grafana/dashboards/petclinic-dashboard.json`. To import:
 
-1. Open Grafana → Dashboards → Import
+1. Open Grafana at `http://<alb-dns>/grafana` → Dashboards → Import
 2. Upload the JSON file
 3. Select the Prometheus datasource
 
