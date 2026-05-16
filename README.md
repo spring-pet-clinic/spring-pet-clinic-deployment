@@ -24,6 +24,8 @@ Grafana, Prometheus, and Zipkin are served off the **same ALB** as the applicati
 - **Startup ordering:** `initContainers` poll `/actuator/health` on upstream dependencies, enforcing the strict `config-server → discovery-server → all others` boot order
 - **Autoscaling:** HPA on the four traffic-facing services (`api-gateway`, customers/vets/visits) triggered at 60% CPU
 
+![spring_petclinic_architecture](spring_petclinic_architecture.jpg)
+
 ## Quick Start
 
 ```bash
