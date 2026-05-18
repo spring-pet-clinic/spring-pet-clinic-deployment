@@ -11,8 +11,8 @@ on:
       - "k8s/discovery-server/**"
 
 env:
-  AWS_REGION: us-east-1
-  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  AWS_REGION: eu-west-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.eu-west-1.amazonaws.com
   IMAGE_TAG: ${{ github.sha }}
   K8S_NAMESPACE: petclinic
 
