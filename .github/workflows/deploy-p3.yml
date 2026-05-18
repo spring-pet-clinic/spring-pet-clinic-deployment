@@ -1,0 +1,214 @@
+name: "Deploy Phase 3 — Core Business Services"
+
+on:
+  workflow_run:
+    workflows:
+      - "Deploy Phase 2 — Gateway & Admin"
+    types:
+      - completed
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+  K8S_NAMESPACE: petclinic
+
+jobs:
+  # ── Job 1: Gate ──────────────────────────────────────────────────────────────
+  gate:
+    name: "Gate — check Phase 2 result"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Phase 2 conclusion
+        run: |
+          CONCLUSION="${{ github.event.workflow_run.conclusion }}"
+          echo "Phase 2 conclusion: $CONCLUSION"
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "Phase 2 did not succeed (conclusion: $CONCLUSION). Stopping."
+            exit 1
+          fi
+          echo "Phase 2 succeeded — proceeding with Phase 3."
+
+  # ── Job 2: Unit tests ────────────────────────────────────────────────────────
+  test:
+    name: "Test"
+    runs-on: ubuntu-latest
+    needs: gate
+    strategy:
+      matrix:
+        service: [customers-service, visits-service]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+          cache: maven
+
+      - name: Run unit tests — ${{ matrix.service }}
+        working-directory: ${{ matrix.service }}
+        run: mvn test --no-transfer-progress
+
+  # ── Job 3: Build & push images ───────────────────────────────────────────────
+  build-and-push:
+    name: "Build & Push"
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      matrix:
+        service: [customers-service, visits-service]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push — ${{ matrix.service }}
+        working-directory: ${{ matrix.service }}
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/spring-petclinic/${{ matrix.service }}
+        run: |
+          docker build -t $IMAGE_URI:$IMAGE_TAG .
+          docker tag  $IMAGE_URI:$IMAGE_TAG $IMAGE_URI:latest
+          docker push $IMAGE_URI:$IMAGE_TAG
+          docker push $IMAGE_URI:latest
+          echo "Pushed $IMAGE_URI:$IMAGE_TAG"
+
+  # ── Job 4: Deploy to EKS ─────────────────────────────────────────────────────
+  deploy:
+    name: "Deploy"
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig \
+            --region $AWS_REGION \
+            --name ${{ secrets.EKS_CLUSTER_NAME }}
+
+      # ── Inject DB secret from Secrets Manager ──────────────────────────────
+      - name: "Fetch DB credentials from Secrets Manager"
+        id: db-secret
+        run: |
+          SECRET_JSON=$(aws secretsmanager get-secret-value \
+            --secret-id petclinic/db/password \
+            --query SecretString \
+            --output text)
+
+          # Parse individual fields (secret stored as JSON object)
+          DB_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.password')
+          DB_USERNAME=$(echo "$SECRET_JSON" | jq -r '.username // "petclinic"')
+          DB_HOST=$(echo "$SECRET_JSON" | jq -r '.host // empty')
+          DB_PORT=$(echo "$SECRET_JSON" | jq -r '.port // "3306"')
+
+          # Mask values in logs
+          echo "::add-mask::$DB_PASSWORD"
+          echo "::add-mask::$DB_USERNAME"
+
+          # Export for subsequent steps
+          echo "db_password=$DB_PASSWORD" >> $GITHUB_OUTPUT
+          echo "db_username=$DB_USERNAME" >> $GITHUB_OUTPUT
+          echo "db_host=$DB_HOST"         >> $GITHUB_OUTPUT
+          echo "db_port=$DB_PORT"         >> $GITHUB_OUTPUT
+
+      - name: "Create Kubernetes DB secret"
+        run: |
+          kubectl create secret generic db-secret \
+            --namespace=$K8S_NAMESPACE \
+            --from-literal=DB_PASSWORD=${{ steps.db-secret.outputs.db_password }} \
+            --from-literal=DB_USERNAME=${{ steps.db-secret.outputs.db_username }} \
+            --from-literal=DB_HOST=${{ steps.db-secret.outputs.db_host }} \
+            --from-literal=DB_PORT=${{ steps.db-secret.outputs.db_port }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+          echo "db-secret applied to namespace: $K8S_NAMESPACE"
+
+      # ── Customers Service ──────────────────────────────────────────────────
+      - name: "Deploy Customers Service"
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/spring-petclinic/customers-service:${{ env.IMAGE_TAG }}
+        run: |
+          sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_URI|g" k8s/customers-service/deployment.yaml
+          kubectl apply -f k8s/customers-service/ -n $K8S_NAMESPACE
+
+      - name: "Wait — Customers Service rollout"
+        run: |
+          kubectl rollout status deployment/customers-service \
+            -n $K8S_NAMESPACE --timeout=180s
+
+      - name: "Health check — Customers Service DB"
+        run: |
+          echo "Probing Customers Service /actuator/health/db ..."
+          for i in $(seq 1 20); do
+            STATUS=$(kubectl exec -n $K8S_NAMESPACE \
+              deploy/customers-service -- \
+              curl -sf http://localhost:8081/actuator/health/db \
+              | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+            echo "  attempt $i — DB status: $STATUS"
+            [ "$STATUS" = "UP" ] && { echo "Customers DB connection healthy"; break; }
+            [ "$i" -eq 20 ] && { echo "Customers DB health check timed out"; exit 1; }
+            sleep 10
+          done
+
+      # ── Visits Service ─────────────────────────────────────────────────────
+      - name: "Deploy Visits Service"
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/spring-petclinic/visits-service:${{ env.IMAGE_TAG }}
+        run: |
+          sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_URI|g" k8s/visits-service/deployment.yaml
+          kubectl apply -f k8s/visits-service/ -n $K8S_NAMESPACE
+
+      - name: "Wait — Visits Service rollout"
+        run: |
+          kubectl rollout status deployment/visits-service \
+            -n $K8S_NAMESPACE --timeout=180s
+
+      - name: "Health check — Visits Service DB"
+        run: |
+          echo "Probing Visits Service /actuator/health/db ..."
+          for i in $(seq 1 20); do
+            STATUS=$(kubectl exec -n $K8S_NAMESPACE \
+              deploy/visits-service -- \
+              curl -sf http://localhost:8082/actuator/health/db \
+              | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+            echo "  attempt $i — DB status: $STATUS"
+            [ "$STATUS" = "UP" ] && { echo "Visits DB connection healthy"; break; }
+            [ "$i" -eq 20 ] && { echo "Visits DB health check timed out"; exit 1; }
+            sleep 10
+          done
+
+      - name: "Phase 3 complete"
+        run: |
+          echo "================================================"
+          echo " Phase 3 SUCCESS"
+          echo " Customers Service — DB healthy on :8081"
+          echo " Visits Service    — DB healthy on :8082"
+          echo " Core clinic data is live on RDS."
+          echo " Phase 4 can now start."
+          echo "================================================"

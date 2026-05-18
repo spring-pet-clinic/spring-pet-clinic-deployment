@@ -1,0 +1,275 @@
+name: "Deploy Phase 4 — Vets & AI Services"
+
+on:
+  workflow_run:
+    workflows:
+      - "Deploy Phase 3 — Core Business Services"
+    types:
+      - completed
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+  K8S_NAMESPACE: petclinic
+
+jobs:
+  # ── Job 1: Gate ──────────────────────────────────────────────────────────────
+  gate:
+    name: "Gate — check Phase 3 result"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Phase 3 conclusion
+        run: |
+          CONCLUSION="${{ github.event.workflow_run.conclusion }}"
+          echo "Phase 3 conclusion: $CONCLUSION"
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "Phase 3 did not succeed (conclusion: $CONCLUSION). Stopping."
+            exit 1
+          fi
+          echo "Phase 3 succeeded — proceeding with Phase 4."
+
+  # ── Job 2: Unit tests ────────────────────────────────────────────────────────
+  test:
+    name: "Test"
+    runs-on: ubuntu-latest
+    needs: gate
+    strategy:
+      matrix:
+        service: [vets-service, genai-service]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+          cache: maven
+
+      - name: Run unit tests — ${{ matrix.service }}
+        working-directory: ${{ matrix.service }}
+        run: mvn test --no-transfer-progress
+
+  # ── Job 3: Build & push images ───────────────────────────────────────────────
+  build-and-push:
+    name: "Build & Push"
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      matrix:
+        service: [vets-service, genai-service]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push — ${{ matrix.service }}
+        working-directory: ${{ matrix.service }}
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/spring-petclinic/${{ matrix.service }}
+        run: |
+          docker build -t $IMAGE_URI:$IMAGE_TAG .
+          docker tag  $IMAGE_URI:$IMAGE_TAG $IMAGE_URI:latest
+          docker push $IMAGE_URI:$IMAGE_TAG
+          docker push $IMAGE_URI:latest
+          echo "Pushed $IMAGE_URI:$IMAGE_TAG"
+
+  # ── Job 4: Deploy to EKS ─────────────────────────────────────────────────────
+  deploy:
+    name: "Deploy"
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig \
+            --region $AWS_REGION \
+            --name ${{ secrets.EKS_CLUSTER_NAME }}
+
+      # ── Inject DB secret (Vets Service needs RDS) ──────────────────────────
+      - name: "Fetch DB credentials from Secrets Manager"
+        id: db-secret
+        run: |
+          SECRET_JSON=$(aws secretsmanager get-secret-value \
+            --secret-id petclinic/db/password \
+            --query SecretString \
+            --output text)
+
+          DB_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.password')
+          DB_USERNAME=$(echo "$SECRET_JSON" | jq -r '.username // "petclinic"')
+
+          echo "::add-mask::$DB_PASSWORD"
+          echo "::add-mask::$DB_USERNAME"
+
+          echo "db_password=$DB_PASSWORD" >> $GITHUB_OUTPUT
+          echo "db_username=$DB_USERNAME" >> $GITHUB_OUTPUT
+
+      - name: "Refresh Kubernetes DB secret"
+        run: |
+          kubectl create secret generic db-secret \
+            --namespace=$K8S_NAMESPACE \
+            --from-literal=DB_PASSWORD=${{ steps.db-secret.outputs.db_password }} \
+            --from-literal=DB_USERNAME=${{ steps.db-secret.outputs.db_username }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # ── Inject GenAI / LLM API key ─────────────────────────────────────────
+      - name: "Fetch LLM API key from Secrets Manager"
+        id: genai-secret
+        run: |
+          SECRET_JSON=$(aws secretsmanager get-secret-value \
+            --secret-id petclinic/genai/api-key \
+            --query SecretString \
+            --output text)
+
+          LLM_API_KEY=$(echo "$SECRET_JSON" | jq -r '.api_key // .')
+
+          echo "::add-mask::$LLM_API_KEY"
+          echo "llm_api_key=$LLM_API_KEY" >> $GITHUB_OUTPUT
+
+      - name: "Create Kubernetes GenAI secret"
+        run: |
+          kubectl create secret generic genai-secret \
+            --namespace=$K8S_NAMESPACE \
+            --from-literal=OPENAI_API_KEY=${{ steps.genai-secret.outputs.llm_api_key }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+          echo "genai-secret applied to namespace: $K8S_NAMESPACE"
+
+      # ── Vets Service ───────────────────────────────────────────────────────
+      - name: "Deploy Vets Service"
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/spring-petclinic/vets-service:${{ env.IMAGE_TAG }}
+        run: |
+          sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_URI|g" k8s/vets-service/deployment.yaml
+          kubectl apply -f k8s/vets-service/ -n $K8S_NAMESPACE
+
+      - name: "Wait — Vets Service rollout"
+        run: |
+          kubectl rollout status deployment/vets-service \
+            -n $K8S_NAMESPACE --timeout=180s
+
+      - name: "Health check — Vets Service DB"
+        run: |
+          echo "Probing Vets Service /actuator/health/db ..."
+          for i in $(seq 1 20); do
+            STATUS=$(kubectl exec -n $K8S_NAMESPACE \
+              deploy/vets-service -- \
+              curl -sf http://localhost:8083/actuator/health/db \
+              | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+            echo "  attempt $i — DB status: $STATUS"
+            [ "$STATUS" = "UP" ] && { echo "Vets DB connection healthy"; break; }
+            [ "$i" -eq 20 ] && { echo "Vets DB health check timed out"; exit 1; }
+            sleep 10
+          done
+
+      # ── GenAI Service ──────────────────────────────────────────────────────
+      - name: "Deploy GenAI Service"
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/spring-petclinic/genai-service:${{ env.IMAGE_TAG }}
+        run: |
+          sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_URI|g" k8s/genai-service/deployment.yaml
+          kubectl apply -f k8s/genai-service/ -n $K8S_NAMESPACE
+
+      - name: "Wait — GenAI Service rollout"
+        run: |
+          kubectl rollout status deployment/genai-service \
+            -n $K8S_NAMESPACE --timeout=180s
+
+      - name: "Health check — GenAI Service"
+        run: |
+          echo "Probing GenAI Service /actuator/health ..."
+          for i in $(seq 1 20); do
+            STATUS=$(kubectl exec -n $K8S_NAMESPACE \
+              deploy/genai-service -- \
+              curl -sf http://localhost:8084/actuator/health \
+              | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+            echo "  attempt $i — status: $STATUS"
+            [ "$STATUS" = "UP" ] && { echo "GenAI Service is UP"; break; }
+            [ "$i" -eq 20 ] && { echo "GenAI health check timed out"; exit 1; }
+            sleep 10
+          done
+
+      # ── End-to-end GenAI smoke test ────────────────────────────────────────
+      - name: "Smoke test — GenAI end-to-end"
+        run: |
+          echo "Fetching ALB hostname ..."
+          ALB_HOST=$(kubectl get svc api-gateway -n $K8S_NAMESPACE \
+            -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+          echo "Running GenAI recommendation smoke test ..."
+          HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+            -X POST "http://$ALB_HOST/genai/recommend" \
+            -H "Content-Type: application/json" \
+            -d '{"symptoms": "limping and lethargy"}' || true)
+
+          echo "GenAI smoke test HTTP response: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "GenAI smoke test failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "GenAI smoke test PASSED"
+
+      # ── Final system summary ───────────────────────────────────────────────
+      - name: "Phase 4 complete — all services live"
+        run: |
+          echo "================================================"
+          echo " Phase 4 SUCCESS — FULL DEPLOYMENT COMPLETE"
+          echo ""
+          echo " Phase 1: Config Server    :8888  UP"
+          echo "          Discovery Server :8761  UP"
+          echo " Phase 2: API Gateway      :8080  UP  (public)"
+          echo "          Admin Server     :9090  UP  (internal)"
+          echo " Phase 3: Customers Svc    :8081  UP"
+          echo "          Visits Svc       :8082  UP"
+          echo " Phase 4: Vets Svc         :8083  UP"
+          echo "          GenAI Svc        :8084  UP"
+          echo ""
+          echo " All 8 services healthy."
+          echo " GenAI smoke test passed."
+          echo " Deployment chain complete."
+          echo "================================================"
+
+          # Print live service summary to GitHub Actions job summary
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## Deployment Complete
+
+          | Phase | Service | Port | Status |
+          |---|---|---|---|
+          | 1 | Config Server | 8888 | Healthy |
+          | 1 | Discovery Server | 8761 | Healthy |
+          | 2 | API Gateway | 8080 | Healthy (public) |
+          | 2 | Admin Server | 9090 | Healthy (internal) |
+          | 3 | Customers Service | 8081 | Healthy |
+          | 3 | Visits Service | 8082 | Healthy |
+          | 4 | Vets Service | 8083 | Healthy |
+          | 4 | GenAI Service | 8084 | Healthy |
+
+          **Commit:** \`${{ github.event.workflow_run.head_sha }}\`
+          **Image tag:** \`${{ env.IMAGE_TAG }}\`
+          EOF
